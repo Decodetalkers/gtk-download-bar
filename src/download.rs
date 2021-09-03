@@ -14,7 +14,10 @@ use url::Url;
 
 use crate::core::{Config, EventsHandler, FtpDownload, HttpDownload};
 use crate::utils::{decode_percent_encoded_data, get_file_handle};
-
+use crate::config::*;
+fn create_storage_before() {
+    fs::create_dir_all(DIR).unwrap();
+}
 fn request_headers_from_server(url: &Url, timeout: u64, ua: &str) -> Result<HeaderMap> {
     let resp = Client::new()
         .get(url.as_ref())
@@ -37,7 +40,7 @@ fn print_headers(headers: HeaderMap) {
 
 // 临时文件
 fn get_resume_chunk_offsets(fname: &str, ct_len: u64, chunk_size: u64) -> Result<Vec<(u64, u64)>> {
-    let st_fname = format!("{}.st", fname);
+    let st_fname = format!("tmp/{}.st", fname);
     let input = fs::File::open(st_fname)?;
     let buf = BufReader::new(input);
     let mut downloaded = vec![];
@@ -114,9 +117,10 @@ fn gen_filename(url: &Url, fname: Option<&str>, headers: Option<&HeaderMap>) -> 
     }
 }
 
+// 保存了临时文件
 fn calc_bytes_on_disk(fname: &str) -> Result<Option<u64>> {
     // use state file if present
-    let st_fname = format!("{}.st", fname);
+    let st_fname = format!("{}{}.st",DIR, fname);
     if Path::new(&st_fname).exists() {
         let input = fs::File::open(st_fname)?;
         let buf = BufReader::new(input);
@@ -153,6 +157,7 @@ fn prep_headers(fname: &str, resume: bool, user_agent: &str) -> Result<HeaderMap
 }
 
 pub fn ftp_download(prog_bar: glib::Sender<Option<f64>>,url: Url, quiet_mode: bool, filename: Option<&str>) -> Result<()> {
+    create_storage_before();
     let fname = gen_filename(&url, filename, None);
 
     let mut client = FtpDownload::new(url);
@@ -162,12 +167,18 @@ pub fn ftp_download(prog_bar: glib::Sender<Option<f64>>,url: Url, quiet_mode: bo
 }
 
 // http 下载入口
-pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMatches, version: &str) -> Result<()> {
+pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMatches) -> Result<()> {
+    create_storage_before();
     let resume_download = args.is_present("continue");
+    if resume_download {
+        println!("yes");
+    } else {
+        println!("no");
+    }
     let concurrent_download = !args.is_present("singlethread");
     let user_agent = args
         .value_of("AGENT")
-        .unwrap_or(&format!("Duma/{}", version))
+        .unwrap_or("Connot download")
         .to_owned();
     let timeout = if let Some(secs) = args.value_of("SECONDS") {
         secs.parse::<u64>()?
@@ -181,7 +192,7 @@ pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMat
     };
     let headers = request_headers_from_server(&url, timeout, &user_agent)?;
     let fname = gen_filename(&url, args.value_of("FILE"), Some(&headers));
-
+    println!("{}",fname);
     // early exit if headers flag is present
     if args.is_present("headers") {
         print_headers(headers);
@@ -197,7 +208,7 @@ pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMat
     let headers = prep_headers(&fname, resume_download, &user_agent)?;
 
     // 返回一个临时文件是否存在的bool
-    let state_file_exists = Path::new(&format!("{}.st", fname)).exists();
+    let state_file_exists = Path::new(&format!("{}{}.st", DIR,fname)).exists();
     let chunk_size = 512_000u64;
 
     let chunk_offsets =
@@ -371,7 +382,7 @@ impl EventsHandler for DefaultEventsHandler {
     fn on_finish(&mut self) {
         self.prog_bar.send(Some(1.0)).expect("error");
         self.prog_bar.send(None).expect("error");
-        if fs::remove_file(&format!("{}.st", self.fname)).is_ok() {};
+        if fs::remove_file(&format!("{}{}.st",DIR, self.fname)).is_ok() {};
     }
 
     fn on_max_retries(&mut self) {

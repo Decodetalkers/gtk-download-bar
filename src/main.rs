@@ -53,7 +53,6 @@ fn run(application: &gtk::Application) -> Result<()> {
         args.value_of("URL")
             .ok_or_else(|| format_err!("missing URL argument"))?,
     )?;
-    println!("sss");
     let quiet_mode = args.is_present("quiet");
     let progress_bar = gtk::ProgressBar::new();
     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -63,7 +62,7 @@ fn run(application: &gtk::Application) -> Result<()> {
                 let file_name = args2.value_of("FILE");
                 ftp_download(tx,url, quiet_mode, file_name)
             },
-            "http" | "https" => http_download(tx,url, &args2, crate_version!()),
+            "http" | "https" => http_download(tx,url, &args2),
             _ => utils::gen_error(format!("unsupported url scheme '{}'", url.scheme())),
         }
     });

@@ -4,7 +4,7 @@ use std::fs::OpenOptions;
 use std::io;
 use std::path::Path;
 use url::{ParseError, Url};
-
+use crate::config::*;
 pub fn parse_url(url: &str) -> Result<Url, ParseError> {
     match Url::parse(url) {
         Ok(url) => Ok(url),
@@ -20,21 +20,22 @@ pub fn gen_error(msg: String) -> Result<()> {
     bail!(msg)
 }
 
+//设置下载地址
 pub fn get_file_handle(fname: &str, resume_download: bool, append: bool) -> io::Result<File> {
     if resume_download && Path::new(fname).exists() {
         if append {
-            match OpenOptions::new().append(true).open(fname) {
+            match OpenOptions::new().append(true).open(DIR.to_owned()+fname) {
                 Ok(file) => Ok(file),
                 Err(error) => Err(error),
             }
         } else {
-            match OpenOptions::new().write(true).open(fname) {
+            match OpenOptions::new().write(true).open(DIR.to_owned()+fname) {
                 Ok(file) => Ok(file),
                 Err(error) => Err(error),
             }
         }
     } else {
-        match OpenOptions::new().write(true).create(true).open(fname) {
+        match OpenOptions::new().write(true).create(true).open(DIR.to_owned()+fname) {
             Ok(file) => Ok(file),
             Err(error) => Err(error),
         }
