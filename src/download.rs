@@ -4,7 +4,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{format_err, Result};
-use clap::ArgMatches;
 use console::style;
 use indicatif::HumanBytes;
 use reqwest::blocking::Client;
@@ -12,9 +11,9 @@ use reqwest::header::{self, HeaderMap, HeaderValue};
 
 use url::Url;
 
+use crate::config::*;
 use crate::core::{Config, EventsHandler, FtpDownload, HttpDownload};
 use crate::utils::{decode_percent_encoded_data, get_file_handle};
-use crate::config::*;
 fn create_storage_before() {
     fs::create_dir_all(DIR).unwrap();
 }
@@ -28,48 +27,38 @@ fn request_headers_from_server(url: &Url, timeout: u64, ua: &str) -> Result<Head
     Ok(resp.headers().clone())
 }
 
-fn print_headers(headers: HeaderMap) {
-    for (hdr, val) in headers.iter() {
-        println!(
-            "{}: {}",
-            style(hdr.as_str()).red(),
-            style(val.to_str().unwrap_or("<..>")).green()
-        );
-    }
-}
-
 // 临时文件
-fn get_resume_chunk_offsets(fname: &str, ct_len: u64, chunk_size: u64) -> Result<Vec<(u64, u64)>> {
-    let st_fname = format!("tmp/{}.st", fname);
-    let input = fs::File::open(st_fname)?;
-    let buf = BufReader::new(input);
-    let mut downloaded = vec![];
-    for line in buf.lines() {
-        let l = line?;
-        let l = l.split(':').collect::<Vec<_>>();
-        let n = (l[0].parse::<u64>()?, l[1].parse::<u64>()?);
-        downloaded.push(n);
-    }
-    // 元组第一个查找
-    downloaded.sort_by_key(|a| a.1);
-    let mut chunks = vec![];
-
-    let mut i: u64 = 0;
-    for (bc, offset) in downloaded {
-        if i != offset {
-            chunks.push((i, offset - 1));
-        }
-        i = offset + bc;
-    }
-
-    while (ct_len - i) > chunk_size {
-        chunks.push((i, i + chunk_size - 1));
-        i += chunk_size;
-    }
-    chunks.push((i, ct_len));
-
-    Ok(chunks)
-}
+//fn get_resume_chunk_offsets(fname: &str, ct_len: u64, chunk_size: u64) -> Result<Vec<(u64, u64)>> {
+//    let st_fname = format!("tmp/{}.st", fname);
+//    let input = fs::File::open(st_fname)?;
+//    let buf = BufReader::new(input);
+//    let mut downloaded = vec![];
+//    for line in buf.lines() {
+//        let l = line?;
+//        let l = l.split(':').collect::<Vec<_>>();
+//        let n = (l[0].parse::<u64>()?, l[1].parse::<u64>()?);
+//        downloaded.push(n);
+//    }
+//    // 元组第一个查找
+//    downloaded.sort_by_key(|a| a.1);
+//    let mut chunks = vec![];
+//
+//    let mut i: u64 = 0;
+//    for (bc, offset) in downloaded {
+//        if i != offset {
+//            chunks.push((i, offset - 1));
+//        }
+//        i = offset + bc;
+//    }
+//
+//    while (ct_len - i) > chunk_size {
+//        chunks.push((i, i + chunk_size - 1));
+//        i += chunk_size;
+//    }
+//    chunks.push((i, ct_len));
+//
+//    Ok(chunks)
+//}
 
 fn gen_filename(url: &Url, fname: Option<&str>, headers: Option<&HeaderMap>) -> String {
     let content_disposition = headers
@@ -120,7 +109,7 @@ fn gen_filename(url: &Url, fname: Option<&str>, headers: Option<&HeaderMap>) -> 
 // 保存了临时文件
 fn calc_bytes_on_disk(fname: &str) -> Result<Option<u64>> {
     // use state file if present
-    let st_fname = format!("{}{}.st",DIR, fname);
+    let st_fname = format!("{}{}.st", DIR, fname);
     if Path::new(&st_fname).exists() {
         let input = fs::File::open(st_fname)?;
         let buf = BufReader::new(input);
@@ -156,82 +145,49 @@ fn prep_headers(fname: &str, resume: bool, user_agent: &str) -> Result<HeaderMap
     Ok(headers)
 }
 
-pub fn ftp_download(prog_bar: glib::Sender<Option<f64>>,url: Url, quiet_mode: bool, filename: Option<&str>) -> Result<()> {
+pub fn ftp_download(
+    prog_bar: glib::Sender<Option<f64>>,
+    url: Url,
+    quiet_mode: bool,
+    filename: Option<&str>,
+) -> Result<()> {
     create_storage_before();
     let fname = gen_filename(&url, filename, None);
 
     let mut client = FtpDownload::new(url);
-    let events_handler = DefaultEventsHandler::new(prog_bar,&fname, false, false, quiet_mode)?;
+    let events_handler = DefaultEventsHandler::new(prog_bar, &fname, false, false, quiet_mode)?;
     client.events_hook(events_handler).download()?;
     Ok(())
 }
 
 // http 下载入口
-pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMatches) -> Result<()> {
+pub fn http_download(prog_bar: glib::Sender<Option<f64>>, url: Url) -> Result<()> {
     create_storage_before();
-    let resume_download = args.is_present("continue");
-    if resume_download {
-        println!("yes");
-    } else {
-        println!("no");
-    }
-    let concurrent_download = !args.is_present("singlethread");
-    let user_agent = args
-        .value_of("AGENT")
-        .unwrap_or("Connot download")
-        .to_owned();
-    let timeout = if let Some(secs) = args.value_of("SECONDS") {
-        secs.parse::<u64>()?
-    } else {
-        30u64
-    };
-    let num_workers = if let Some(num) = args.value_of("NUM_CONNECTIONS") {
-        num.parse::<usize>()?
-    } else {
-        8usize
-    };
+    let user_agent = "".to_string();
+    let timeout = 30u64;
+    let num_workers = 8usize;
     let headers = request_headers_from_server(&url, timeout, &user_agent)?;
-    let fname = gen_filename(&url, args.value_of("FILE"), Some(&headers));
-    println!("{}",fname);
+    let fname = gen_filename(&url, None, Some(&headers));
     // early exit if headers flag is present
-    if args.is_present("headers") {
-        print_headers(headers);
-        return Ok(());
-    }
-    let ct_len = if let Some(val) = headers.get("Content-Length") {
-        val.to_str()?.parse::<u64>().unwrap_or(0)
-    } else {
-        0u64
-    };
 
     // 这边跳转了个新的function,处理内容未知
-    let headers = prep_headers(&fname, resume_download, &user_agent)?;
+    let headers = prep_headers(&fname, false, &user_agent)?;
 
     // 返回一个临时文件是否存在的bool
-    let state_file_exists = Path::new(&format!("{}{}.st", DIR,fname)).exists();
     let chunk_size = 512_000u64;
 
-    let chunk_offsets =
-        if state_file_exists && resume_download && concurrent_download && ct_len != 0 {
-            Some(get_resume_chunk_offsets(&fname, ct_len, chunk_size)?)
-        } else {
-            None
-        };
+    let chunk_offsets = None;
 
-    let bytes_on_disk = if resume_download {
-        calc_bytes_on_disk(&fname)?
-    } else {
-        None
-    };
+    let bytes_on_disk = None;
 
     // 生成了一个conifg,来自core
     let conf = Config {
         user_agent,
-        resume: resume_download,
+        resume: false,
         headers,
         file: fname.clone(),
         timeout,
-        concurrent: concurrent_download,
+        concurrent: true,
         max_retries: 100,
         num_workers,
         bytes_on_disk,
@@ -240,9 +196,8 @@ pub fn http_download(prog_bar: glib::Sender<Option<f64>>,url: Url, args: &ArgMat
     };
 
     let mut client = HttpDownload::new(url, conf);
-    let quiet_mode = args.is_present("quiet");
-    let events_handler =
-        DefaultEventsHandler::new(prog_bar,&fname, resume_download, concurrent_download, quiet_mode)?;
+
+    let events_handler = DefaultEventsHandler::new(prog_bar, &fname, false, true, false)?;
     client.events_hook(events_handler).download()?;
     Ok(())
 }
@@ -280,7 +235,7 @@ impl DefaultEventsHandler {
         };
         Ok(DefaultEventsHandler {
             prog_bar,
-            length:0,
+            length: 0,
             progress: 0.0,
             bytes_on_disk: calc_bytes_on_disk(fname)?,
             fname: fname.to_owned(),
@@ -303,7 +258,7 @@ impl DefaultEventsHandler {
 
             println!("Length: {} ({})", exact, human_readable);
 
-            self.length=len;
+            self.length = len;
         } else {
             println!("Length: {}", style("unknown").red());
         }
@@ -311,7 +266,9 @@ impl DefaultEventsHandler {
         //let prog_bar = create_progress_bar(&self.fname, length);
         if let Some(count) = byte_count {
             self.progress += count as f64 / (self.length as f64);
-            self.prog_bar.send(Some(self.progress)).expect("cannot send");
+            self.prog_bar
+                .send(Some(self.progress))
+                .expect("cannot send");
         }
         //self.prog_bar = Some(prog_bar);
     }
@@ -353,7 +310,7 @@ impl EventsHandler for DefaultEventsHandler {
     fn on_content(&mut self, content: &[u8]) -> Result<()> {
         let byte_count = content.len() as u64;
         self.file.write_all(content)?;
-        self.progress +=(byte_count as f64)/ (self.length as f64);
+        self.progress += (byte_count as f64) / (self.length as f64);
         self.prog_bar.send(Some(self.progress))?;
         Ok(())
     }
@@ -366,7 +323,7 @@ impl EventsHandler for DefaultEventsHandler {
         self.file.seek(SeekFrom::Start(offset))?;
         self.file.write_all(buf)?;
         self.file.flush()?;
-        self.progress +=(byte_count as f64)/ (self.length as f64);
+        self.progress += (byte_count as f64) / (self.length as f64);
         self.prog_bar.send(Some(self.progress))?;
         if let Some(ref mut file) = self.st_file {
             writeln!(file, "{}:{}", byte_count, offset)?;
@@ -382,7 +339,7 @@ impl EventsHandler for DefaultEventsHandler {
     fn on_finish(&mut self) {
         self.prog_bar.send(Some(1.0)).expect("error");
         self.prog_bar.send(None).expect("error");
-        if fs::remove_file(&format!("{}{}.st",DIR, self.fname)).is_ok() {};
+        if fs::remove_file(&format!("{}{}.st", DIR, self.fname)).is_ok() {};
     }
 
     fn on_max_retries(&mut self) {
