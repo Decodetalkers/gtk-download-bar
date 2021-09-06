@@ -27,6 +27,7 @@ fn run(application: &gtk::Application) -> Result<()> {
     window.set_position(gtk::WindowPosition::Center);
     let start = gtkdownloadbar::DownloadProgressBar::new(
         "https://d.store.deepinos.org.cn//store/chat/chaoxin/chaoxin_1.8.3_amd64.deb".to_string(),
+        None,
     )?;
 
     let download_box = gtk::Box::new(gtk::Orientation::Vertical,0);
@@ -34,6 +35,7 @@ fn run(application: &gtk::Application) -> Result<()> {
 
     let start = gtkdownloadbar::DownloadProgressBar::new(
         "https://d.store.deepinos.org.cn//store/chat/com.deekian.lark/com.deekian.lark.deb".to_string(),
+        None,
     )?;
     start.add_progress_bar_to(&download_box);
     window.add(&download_box);

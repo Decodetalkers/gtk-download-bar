@@ -6,7 +6,7 @@ use anyhow::Result;
 use config::DIR;
 use download::*;
 use gtk::prelude::*;
-use gtk::{Button, ProgressBar};
+use gtk::{Button, ProgressBar,gdk_pixbuf::Pixbuf};
 use std::{cell::RefCell, path::Path, thread};
 #[derive(Clone, Copy)]
 enum DownloadStatus {
@@ -17,9 +17,10 @@ pub struct DownloadProgressBar {
     status: RefCell<DownloadStatus>,
     url: String,
     fname: String,
+    icon : Option<Pixbuf>
 }
 impl DownloadProgressBar {
-    pub fn new(url: String) -> Result<Self> {
+    pub fn new(url: String,icon :Option<Pixbuf>) -> Result<Self> {
         let urll = utils::parse_url(&url).unwrap();
         let headers = request_headers_from_server(&urll, 30u64, "")?;
         let fname = gen_filename(&urll, None, Some(&headers));
@@ -27,6 +28,7 @@ impl DownloadProgressBar {
             status: RefCell::new(DownloadStatus::Todownload),
             url,
             fname,
+            icon,
         })
     }
     pub fn add_progress_bar_to(self, inputbox: &gtk::Box) {
@@ -34,6 +36,11 @@ impl DownloadProgressBar {
         let progress_bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let download_bar = ProgressBar::new();
         let download_button = Button::with_label("start");
+        if let Some(pic) = &self.icon {
+            let pic = pic.scale_simple(100, 100, gtk::gdk_pixbuf::InterpType::Hyper).unwrap();
+            let image = gtk::Image::from_gicon(&pic, gtk::IconSize::Button);
+            progress_bar.pack_start(&image, false, false, 0);
+        }
         progress_bar.pack_start(&download_bar, true, true, 0);
         progress_bar.pack_start(&download_button, false, false, 0);
         download_button.connect_clicked(glib::clone!(@weak inputbox,@weak progress_bar => move |button|{
