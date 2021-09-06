@@ -1,14 +1,14 @@
 [package]
-name = "duma"
+name = "gtkdownloadbar"
 version = "0.2.0"
-authors = ["Matt Gathu <mattgathu@gmail.com>"]
-description = "A minimal file downloader"
-documentation = "https://github.com/mattgathu/duma"
-homepage = "https://github.com/mattgathu/duma"
-repository = "https://github.com/mattgathu/duma"
+authors = ["cht <3237126351@qq.com>"]
+description = "A lib to download for sparkstore"
+documentation = "https://github.com/chen244/gtk-download-bar"
+homepage = "https://github.com/chen244/gtk-download-bar"
+repository = "https://github.com/chen244/gtk-download-bar"
 readme = "README.md"
-keywords = ["http", "client", "cli", "file", "download"]
-categories = ["web-programming::http-client", "command-line-utilities", "network-programming"]
+keywords = ["http", "client", "cli", "file", "download","gtk"]
+categories = ["web-programming::http-client","network-programming"]
 license = "MIT"
 edition = "2018"
 

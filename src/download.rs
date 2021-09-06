@@ -17,7 +17,7 @@ use crate::utils::{decode_percent_encoded_data, get_file_handle};
 fn create_storage_before() {
     fs::create_dir_all(DIR).unwrap();
 }
-fn request_headers_from_server(url: &Url, timeout: u64, ua: &str) -> Result<HeaderMap> {
+pub fn request_headers_from_server(url: &Url, timeout: u64, ua: &str) -> Result<HeaderMap> {
     let resp = Client::new()
         .get(url.as_ref())
         .timeout(Duration::from_secs(timeout))
@@ -27,40 +27,7 @@ fn request_headers_from_server(url: &Url, timeout: u64, ua: &str) -> Result<Head
     Ok(resp.headers().clone())
 }
 
-// 临时文件
-//fn get_resume_chunk_offsets(fname: &str, ct_len: u64, chunk_size: u64) -> Result<Vec<(u64, u64)>> {
-//    let st_fname = format!("tmp/{}.st", fname);
-//    let input = fs::File::open(st_fname)?;
-//    let buf = BufReader::new(input);
-//    let mut downloaded = vec![];
-//    for line in buf.lines() {
-//        let l = line?;
-//        let l = l.split(':').collect::<Vec<_>>();
-//        let n = (l[0].parse::<u64>()?, l[1].parse::<u64>()?);
-//        downloaded.push(n);
-//    }
-//    // 元组第一个查找
-//    downloaded.sort_by_key(|a| a.1);
-//    let mut chunks = vec![];
-//
-//    let mut i: u64 = 0;
-//    for (bc, offset) in downloaded {
-//        if i != offset {
-//            chunks.push((i, offset - 1));
-//        }
-//        i = offset + bc;
-//    }
-//
-//    while (ct_len - i) > chunk_size {
-//        chunks.push((i, i + chunk_size - 1));
-//        i += chunk_size;
-//    }
-//    chunks.push((i, ct_len));
-//
-//    Ok(chunks)
-//}
-
-fn gen_filename(url: &Url, fname: Option<&str>, headers: Option<&HeaderMap>) -> String {
+pub fn gen_filename(url: &Url, fname: Option<&str>, headers: Option<&HeaderMap>) -> String {
     let content_disposition = headers
         .and_then(|hdrs| hdrs.get(header::CONTENT_DISPOSITION))
         .and_then(|val| {
