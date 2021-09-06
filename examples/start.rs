@@ -25,7 +25,8 @@ fn run(application: &gtk::Application) -> Result<()> {
     let window = gtk::ApplicationWindow::new(application);
     window.set_title("Accessibility");
     window.set_position(gtk::WindowPosition::Center);
-    let progress_bar = duma::DownloadProgressBar::new(
+    let start = duma::DownloadProgressBar::new();
+    let progress_bar = start.progress_bar(
         "https://d.store.deepinos.org.cn//store/chat/chaoxin/chaoxin_1.8.3_amd64.deb".to_string(),
     );
     window.add(&progress_bar);
