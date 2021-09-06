@@ -2,21 +2,21 @@ mod config;
 mod core;
 mod download;
 mod utils;
-use gtk::prelude::*;
 use download::*;
-use std::thread;
+use gtk::prelude::*;
 use gtk::{Box, Button, ProgressBar};
 use std::cell::RefCell;
-pub struct DownloadProgressBar{
-    status : RefCell<bool>,
+use std::thread;
+pub struct DownloadProgressBar {
+    status: RefCell<bool>,
 }
 impl DownloadProgressBar {
     pub fn new() -> Self {
         Self {
-            status:RefCell::new(true)
+            status: RefCell::new(true),
         }
     }
-    pub fn progress_bar(self,url: String) -> Box {
+    pub fn progress_bar(self, url: String) -> Box {
         let progress_bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let download_bar = ProgressBar::new();
         let download_button = Button::with_label("start");
