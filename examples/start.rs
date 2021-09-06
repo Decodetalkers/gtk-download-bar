@@ -28,8 +28,15 @@ fn run(application: &gtk::Application) -> Result<()> {
     let start = gtkdownloadbar::DownloadProgressBar::new(
         "https://d.store.deepinos.org.cn//store/chat/chaoxin/chaoxin_1.8.3_amd64.deb".to_string(),
     )?;
-    let progress_bar = start.progress_bar();
-    window.add(&progress_bar);
+
+    let download_box = gtk::Box::new(gtk::Orientation::Vertical,0);
+    start.add_progress_bar_to(&download_box);
+
+    let start = gtkdownloadbar::DownloadProgressBar::new(
+        "https://d.store.deepinos.org.cn//store/chat/com.deekian.lark/com.deekian.lark.deb".to_string(),
+    )?;
+    start.add_progress_bar_to(&download_box);
+    window.add(&download_box);
     window.show_all();
 
     Ok(())

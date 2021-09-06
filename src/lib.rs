@@ -6,13 +6,12 @@ use anyhow::Result;
 use config::DIR;
 use download::*;
 use gtk::prelude::*;
-use gtk::{Box, Button, ProgressBar};
+use gtk::{Button, ProgressBar};
 use std::{cell::RefCell, path::Path, thread};
 #[derive(Clone, Copy)]
 enum DownloadStatus {
     Todownload,
     Finished,
-    Installed,
 }
 pub struct DownloadProgressBar {
     status: RefCell<DownloadStatus>,
@@ -30,14 +29,14 @@ impl DownloadProgressBar {
             fname,
         })
     }
-    pub fn progress_bar(self) -> Box {
+    pub fn add_progress_bar_to(self, inputbox: &gtk::Box) {
         let url = self.url.clone();
         let progress_bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let download_bar = ProgressBar::new();
         let download_button = Button::with_label("start");
         progress_bar.pack_start(&download_bar, true, true, 0);
         progress_bar.pack_start(&download_button, false, false, 0);
-        download_button.connect_clicked(move |button|{
+        download_button.connect_clicked(glib::clone!(@weak inputbox,@weak progress_bar => move |button|{
             let status = *self.status.borrow();
             match status {
                 DownloadStatus::Todownload => {
@@ -68,20 +67,24 @@ impl DownloadProgressBar {
                     }
                     *self.status.borrow_mut() = DownloadStatus::Finished;
                 },
+                // 这边应该加install的代码
                 DownloadStatus::Finished => {
                     if Path::new(&format!("{}{}",DIR,self.fname)).exists(){
                         println!("Start Install");
-                        button.set_label("installed");
-                        *self.status.borrow_mut() = DownloadStatus::Installed;
+                        // here to be done
+                        inputbox.remove(&progress_bar);
                     }else{
                         *self.status.borrow_mut() = DownloadStatus::Todownload;
                         button.set_label("start");
                     }
-                },
-                DownloadStatus::Installed =>{
                 }
             }
-        });
-        progress_bar
+        }));
+        inputbox.pack_start(&progress_bar, true, false, 0);
+    }
+}
+impl Drop for DownloadProgressBar {
+    fn drop(&mut self) {
+        println!("drop");        
     }
 }
