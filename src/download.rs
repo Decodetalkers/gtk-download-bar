@@ -113,7 +113,7 @@ fn prep_headers(fname: &str, resume: bool, user_agent: &str) -> Result<HeaderMap
 }
 
 pub fn ftp_download(
-    prog_bar: glib::Sender<Option<f64>>,
+    prog_bar: glib::Sender<Option<(f64,String)>>,
     url: Url,
     quiet_mode: bool,
     filename: Option<&str>,
@@ -128,7 +128,7 @@ pub fn ftp_download(
 }
 
 // http 下载入口
-pub fn http_download(prog_bar: glib::Sender<Option<f64>>, url: Url) -> Result<()> {
+pub fn http_download(prog_bar: glib::Sender<Option<(f64,String)>>, url: Url) -> Result<()> {
     create_storage_before();
     let user_agent = "".to_string();
     let timeout = 30u64;
@@ -171,7 +171,7 @@ pub fn http_download(prog_bar: glib::Sender<Option<f64>>, url: Url) -> Result<()
 
 pub struct DefaultEventsHandler {
     // construct the progessbar
-    prog_bar: glib::Sender<Option<f64>>,
+    prog_bar: glib::Sender<Option<(f64,String)>>,
     progress: f64,
     length: u64,
     bytes_on_disk: Option<u64>,
@@ -185,7 +185,7 @@ pub struct DefaultEventsHandler {
 // handle the event
 impl DefaultEventsHandler {
     pub fn new(
-        prog_bar: glib::Sender<Option<f64>>,
+        prog_bar: glib::Sender<Option<(f64,String)>>,
         fname: &str,
         resume: bool,
         concurrent: bool,
@@ -232,9 +232,10 @@ impl DefaultEventsHandler {
 
         //let prog_bar = create_progress_bar(&self.fname, length);
         if let Some(count) = byte_count {
+            let timeline = format!("receive {}/ total{}",HumanBytes(count),HumanBytes(self.length));
             self.progress += count as f64 / (self.length as f64);
             self.prog_bar
-                .send(Some(self.progress))
+                .send(Some((self.progress,timeline)))
                 .expect("cannot send");
         }
         //self.prog_bar = Some(prog_bar);
@@ -277,8 +278,9 @@ impl EventsHandler for DefaultEventsHandler {
     fn on_content(&mut self, content: &[u8]) -> Result<()> {
         let byte_count = content.len() as u64;
         self.file.write_all(content)?;
+        let timeline = format!("receive {}/ total{}",HumanBytes(byte_count),HumanBytes(self.length));
         self.progress += (byte_count as f64) / (self.length as f64);
-        self.prog_bar.send(Some(self.progress))?;
+        self.prog_bar.send(Some((self.progress,timeline)))?;
         Ok(())
     }
     // 这里更新thread的内容
@@ -290,8 +292,9 @@ impl EventsHandler for DefaultEventsHandler {
         self.file.seek(SeekFrom::Start(offset))?;
         self.file.write_all(buf)?;
         self.file.flush()?;
+        let timeline = format!("receive {}/ total{}",HumanBytes(byte_count),HumanBytes(self.length));
         self.progress += (byte_count as f64) / (self.length as f64);
-        self.prog_bar.send(Some(self.progress))?;
+        self.prog_bar.send(Some((self.progress,timeline)))?;
         if let Some(ref mut file) = self.st_file {
             writeln!(file, "{}:{}", byte_count, offset)?;
             file.flush()?;
@@ -304,7 +307,8 @@ impl EventsHandler for DefaultEventsHandler {
     }
 
     fn on_finish(&mut self) {
-        self.prog_bar.send(Some(1.0)).expect("error");
+        let timeline = format!("Finished/ total{}",HumanBytes(self.length));
+        self.prog_bar.send(Some((1.0,timeline))).expect("error");
         self.prog_bar.send(None).expect("error");
         if fs::remove_file(&format!("{}{}.st", DIR, self.fname)).is_ok() {};
     }

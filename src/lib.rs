@@ -33,17 +33,26 @@ impl DownloadProgressBar {
     }
     pub fn add_progress_bar_to(self, inputbox: &gtk::Box) {
         let url = self.url.clone();
-        let progress_bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let progress_bar = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let progress_bar_inside = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let download_bar = ProgressBar::new();
         let download_button = Button::with_label("start");
         if let Some(pic) = &self.icon {
             let pic = pic.scale_simple(100, 100, gtk::gdk_pixbuf::InterpType::Hyper).unwrap();
             let image = gtk::Image::from_gicon(&pic, gtk::IconSize::Button);
-            progress_bar.pack_start(&image, false, false, 0);
+            progress_bar_inside.pack_start(&image, false, false, 0);
         }
-        progress_bar.pack_start(&download_bar, true, true, 0);
-        progress_bar.pack_start(&download_button, false, false, 0);
-        download_button.connect_clicked(glib::clone!(@weak inputbox,@weak progress_bar => move |button|{
+        progress_bar_inside.pack_start(&download_bar, true, true, 0);
+        progress_bar_inside.pack_start(&download_button, false, false, 0);
+
+        let time_line = gtk::Label::new(None);
+        time_line.set_valign(gtk::Align::End);
+        let button_box = gtk::ButtonBox::new(gtk::Orientation::Horizontal);
+        button_box.set_layout(gtk::ButtonBoxStyle::End);
+        button_box.pack_start(&time_line, false, false, 0);
+        progress_bar.pack_start(&progress_bar_inside, true, true, 0);
+        progress_bar.pack_start(&button_box, true, true, 0);
+        download_button.connect_clicked(glib::clone!(@weak inputbox,@weak progress_bar,@weak time_line => move |button|{
             let status = *self.status.borrow();
             match status {
                 DownloadStatus::Todownload => {
@@ -57,8 +66,10 @@ impl DownloadProgressBar {
                         });
                         button.hide();
                         rx.attach(None, glib::clone!(@weak download_bar, @weak button=> @default-return glib::Continue(false),move |value| match value{
-                            Some(length)=>{
+                            Some(message)=>{
+                                let (length, time) = message;
                                 download_bar.set_fraction(length);
+                                time_line.set_label(&time);
                                 glib::Continue(true)
                             },
                             None => {
