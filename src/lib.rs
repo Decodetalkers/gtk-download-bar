@@ -6,7 +6,7 @@ use anyhow::Result;
 use config::DIR;
 use download::*;
 use gtk::prelude::*;
-use gtk::{Button, ProgressBar,gdk_pixbuf::Pixbuf};
+use gtk::{gdk_pixbuf::Pixbuf, Button, ProgressBar};
 use std::{cell::RefCell, path::Path, thread};
 #[derive(Clone, Copy)]
 enum DownloadStatus {
@@ -17,10 +17,11 @@ pub struct DownloadProgressBar {
     status: RefCell<DownloadStatus>,
     url: String,
     fname: String,
-    icon : Option<Pixbuf>
+    name: Option<String>,
+    icon: Option<Pixbuf>,
 }
 impl DownloadProgressBar {
-    pub fn new(url: String,icon :Option<Pixbuf>) -> Result<Self> {
+    pub fn new(url: String, name: Option<String>, icon: Option<Pixbuf>) -> Result<Self> {
         let urll = utils::parse_url(&url).unwrap();
         let headers = request_headers_from_server(&urll, 30u64, "")?;
         let fname = gen_filename(&urll, None, Some(&headers));
@@ -28,6 +29,7 @@ impl DownloadProgressBar {
             status: RefCell::new(DownloadStatus::Todownload),
             url,
             fname,
+            name,
             icon,
         })
     }
@@ -38,7 +40,9 @@ impl DownloadProgressBar {
         let download_bar = ProgressBar::new();
         let download_button = Button::with_label("start");
         if let Some(pic) = &self.icon {
-            let pic = pic.scale_simple(100, 100, gtk::gdk_pixbuf::InterpType::Hyper).unwrap();
+            let pic = pic
+                .scale_simple(100, 100, gtk::gdk_pixbuf::InterpType::Hyper)
+                .unwrap();
             let image = gtk::Image::from_gicon(&pic, gtk::IconSize::Button);
             progress_bar_inside.pack_start(&image, false, false, 0);
         }
@@ -50,8 +54,20 @@ impl DownloadProgressBar {
         let button_box = gtk::ButtonBox::new(gtk::Orientation::Horizontal);
         button_box.set_layout(gtk::ButtonBoxStyle::End);
         button_box.pack_start(&time_line, false, false, 0);
+
+        let under_bar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        under_bar.pack_end(&button_box, false, false, 0);
+
+        if let Some(name) = &self.name {
+            let name_bar = gtk::Label::new(Some(name));
+            let name_bar_left = gtk::ButtonBox::new(gtk::Orientation::Horizontal);
+            name_bar_left.set_layout(gtk::ButtonBoxStyle::Start);
+            name_bar_left.pack_start(&name_bar, false, false, 0);
+            under_bar.pack_start(&name_bar_left, false, false, 0);
+        }
+
         progress_bar.pack_start(&progress_bar_inside, true, true, 0);
-        progress_bar.pack_start(&button_box, true, true, 0);
+        progress_bar.pack_start(&under_bar, true, true, 0);
         download_button.connect_clicked(glib::clone!(@weak inputbox,@weak progress_bar,@weak time_line => move |button|{
             let status = *self.status.borrow();
             match status {
@@ -103,6 +119,6 @@ impl DownloadProgressBar {
 }
 impl Drop for DownloadProgressBar {
     fn drop(&mut self) {
-        println!("drop");        
+        println!("drop");
     }
 }
